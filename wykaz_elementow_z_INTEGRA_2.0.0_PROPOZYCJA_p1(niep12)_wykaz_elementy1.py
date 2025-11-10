@@ -46,13 +46,28 @@ def utworz_wykaz():
         print("❌ Błąd: Plik musi zawierać kolumny 'Zeinr' i 'Posn'!")
         print(f"Znalezione kolumny: {', '.join(df.columns)}")
         return False
-    
+
+    # Znajdź kolumnę 'zakupy' (bez uwzględniania wielkości liter)
+    zakupy_col = None
+    for col in df.columns:
+        if col.lower() == 'zakupy':
+            zakupy_col = col
+            break
+
+    if not zakupy_col:
+        print("❌ Błąd: Nie znaleziono kolumny 'zakupy'!")
+        print(f"Znalezione kolumny: {', '.join(df.columns)}")
+        return False
+
     # Uzupełnij puste wartości
     df['Zeinr'] = df['Zeinr'].fillna('')
     df['Posn'] = df['Posn'].fillna('')
-    
-    # Utwórz kolumnę Nazwa
-    df['Nazwa'] = df['Zeinr'] + '_p' + df['Posn']
+    df[zakupy_col] = df[zakupy_col].fillna('')
+
+    # Utwórz kolumnę Nazwa tylko dla elementów z 'blacha' w kolumnie zakupy
+    df['Nazwa'] = ''
+    mask = df[zakupy_col].str.lower().str.contains('blacha', na=False)
+    df.loc[mask, 'Nazwa'] = df.loc[mask, 'Zeinr'] + '_p' + df.loc[mask, 'Posn']
     
     # Dodaj pustą kolumnę propozycja
     df['propozycja'] = ''
