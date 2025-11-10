@@ -1,2 +1,6 @@
 wykaz.xlsx
+elementy1.xlsx
+propozycje.xlsx
+*.xlsx
+*.xlsm
 /TMP
