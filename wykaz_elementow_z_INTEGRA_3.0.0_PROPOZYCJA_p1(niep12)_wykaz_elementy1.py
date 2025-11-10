@@ -1,6 +1,7 @@
 import pandas as pd
 import re
 import os
+import shutil
 from pathlib import Path
 
 def utworz_wykaz():
@@ -92,9 +93,32 @@ def uruchom_propozycje():
     
     # Sprawdź czy istnieje elementy1.xlsx
     if not os.path.exists('elementy1.xlsx'):
-        print("❌ Błąd: Nie znaleziono pliku elementy1.xlsx!")
-        print("   Ten plik jest wymagany do dopasowania propozycji.")
-        return False
+        print("❌ Nie znaleziono pliku elementy1.xlsx w folderze lokalnym!")
+        print("   Pobieram najnowszą wersję z bazy danych...")
+
+        # Ścieżka do pliku źródłowego
+        sciezka_zrodlowa = r"\\QNAP-ENERGO\Technologia\BAZA\POBIERANIE Z BAZY\elementy1.xlsx"
+
+        if not os.path.exists(sciezka_zrodlowa):
+            print("❌ Błąd: Nie można znaleźć pliku źródłowego w bazie danych!")
+            return False
+
+        try:
+            # Skopiuj plik
+            shutil.copy2(sciezka_zrodlowa, 'elementy1.xlsx')
+            print("✅ Pobrano plik elementy1.xlsx z bazy danych")
+
+            # Wczytaj datę utworzenia z komórki B2
+            df_data = pd.read_excel('elementy1.xlsx', header=None)
+            if df_data.shape[0] > 1 and df_data.shape[1] > 1:
+                data_utworzenia = df_data.iloc[1, 1]  # B2
+                print(f"📅 Data utworzenia bazy: {data_utworzenia}")
+            else:
+                print("⚠️  Nie udało się odczytać daty utworzenia z pliku")
+
+        except Exception as e:
+            print(f"❌ Błąd podczas pobierania pliku: {e}")
+            return False
     
     # Wczytaj dane
     print("📂 Wczytuję dane...")
