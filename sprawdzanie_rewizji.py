@@ -11,38 +11,40 @@ stare_file = r'\\QNAP-ENERGO\Technologia\BAZA\POBIERANIE Z BAZY\SPRAWDZANIE REWI
 wb_propozycje = load_workbook(propozycje_file)
 ws_propozycje = wb_propozycje.active
 
-# Task 1: Fill ZEF and ZEV based on Zeinr
 # Assuming Zeinr is column A, ZEF is column Z, ZEV is column AA (adjust if needed)
 zeinr_col = 'A'  # Zeinr column
 zef_col = 'Z'    # ZEF column
 zev_col = 'AA'   # ZEV column
 
-# Create a dictionary to store ZEF and ZEV for each Zeinr
-lookup = {}
-for row in range(2, ws_propozycje.max_row + 1):  # Start from row 2 assuming header
-    zeinr = ws_propozycje[f'{zeinr_col}{row}'].value
+# Create ZEFZEV column next to ZEV
+zefzev_col = get_column_letter(openpyxl.utils.column_index_from_string(zev_col) + 1)
+ws_propozycje[f'{zefzev_col}1'].value = 'ZEFZEV'
+
+# Fill ZEFZEV with ZEF&ZEV if both ZEF and ZEV are present
+for row in range(2, ws_propozycje.max_row + 1):
     zef = ws_propozycje[f'{zef_col}{row}'].value
     zev = ws_propozycje[f'{zev_col}{row}'].value
-    if zeinr and zef and zev:
-        lookup[zeinr] = (zef, zev)
+    if zef is not None and zev is not None:
+        ws_propozycje[f'{zefzev_col}{row}'].value = str(zef) + str(zev)
 
-# Fill empty ZEF and ZEV
+# Fill empty ZEFZEV by looking up same Zeinr from above rows
+zeinr_to_zefzev = {}
 for row in range(2, ws_propozycje.max_row + 1):
     zeinr = ws_propozycje[f'{zeinr_col}{row}'].value
-    if zeinr in lookup:
-        if not ws_propozycje[f'{zef_col}{row}'].value:
-            ws_propozycje[f'{zef_col}{row}'].value = lookup[zeinr][0]
-        if not ws_propozycje[f'{zev_col}{row}'].value:
-            ws_propozycje[f'{zev_col}{row}'].value = lookup[zeinr][1]
+    zefzev = ws_propozycje[f'{zefzev_col}{row}'].value
+    if zefzev:
+        zeinr_to_zefzev[zeinr] = zefzev
+    else:
+        if zeinr in zeinr_to_zefzev:
+            ws_propozycje[f'{zefzev_col}{row}'].value = zeinr_to_zefzev[zeinr]
 
-# Task 2: Create new column 'nowe_oznaczenie' by concatenating ZEF and ZEV
+# Task 2: Create new column 'nowe_oznaczenie' using ZEFZEV
 nowe_oznaczenie_col = get_column_letter(ws_propozycje.max_column + 1)
 ws_propozycje[f'{nowe_oznaczenie_col}1'].value = 'nowe_oznaczenie'
 for row in range(2, ws_propozycje.max_row + 1):
-    zef = ws_propozycje[f'{zef_col}{row}'].value
-    zev = ws_propozycje[f'{zev_col}{row}'].value
-    if zef and zev:
-        ws_propozycje[f'{nowe_oznaczenie_col}{row}'].value = str(zef) + str(zev)
+    zefzev = ws_propozycje[f'{zefzev_col}{row}'].value
+    if zefzev:
+        ws_propozycje[f'{nowe_oznaczenie_col}{row}'].value = zefzev
 
 # Task 5: Create 'stare_oznaczenie' column next to 'nowe_oznaczenie'
 stare_oznaczenie_col = get_column_letter(openpyxl.utils.column_index_from_string(nowe_oznaczenie_col) + 1)
