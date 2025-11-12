@@ -1,2 +1,8 @@
 \\QNAP-ENERGO\Technologia\BAZA\POBIERANIE Z BAZY
 \\QNAP-ENERGO\Technologia\BAZA\POBIERANIE Z BAZY\SPRAWDZANIE REWIZJI
+
+
+
+utworz nowy plik python sprawdzanie_rewizji.py 
+
+skrypt pobiera
