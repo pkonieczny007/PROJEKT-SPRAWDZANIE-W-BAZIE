@@ -44,6 +44,14 @@ for row in range(2, ws_propozycje.max_row + 1):
     if zef and zev:
         ws_propozycje[f'{nowe_oznaczenie_col}{row}'].value = str(zef) + str(zev)
 
+# Task 5: Create 'stare_oznaczenie' column next to 'nowe_oznaczenie'
+stare_oznaczenie_col = get_column_letter(openpyxl.utils.column_index_from_string(nowe_oznaczenie_col) + 1)
+ws_propozycje[f'{stare_oznaczenie_col}1'].value = 'stare_oznaczenie'
+
+# Task 6: Create 'skrot' column next to 'stare_oznaczenie'
+skrot_col = get_column_letter(openpyxl.utils.column_index_from_string(stare_oznaczenie_col) + 1)
+ws_propozycje[f'{skrot_col}1'].value = 'skrot'
+
 # Task 3: Create new sheet 'stary' and copy columns A:F from stare_file
 wb_stare = load_workbook(stare_file)
 ws_stare_source = wb_stare.active
@@ -67,14 +75,6 @@ for row in range(2, ws_propozycje.max_row + 1):
             col_num = bh_col_num + i
             col_letter = get_column_letter(col_num)
             ws_propozycje[f'{col_letter}{row}'].value = part
-
-# Task 5: Create 'stare_oznaczenie' column next to 'nowe_oznaczenie'
-stare_oznaczenie_col = get_column_letter(ws_propozycje.max_column + 1)
-ws_propozycje[f'{stare_oznaczenie_col}1'].value = 'stare_oznaczenie'
-
-# Task 6: Create 'skrot' column
-skrot_col = get_column_letter(ws_propozycje.max_column + 1)
-ws_propozycje[f'{skrot_col}1'].value = 'skrot'
 
 # Fill 'skrot' with concatenation if 'propozycja' is filled
 # Assuming BN is nowe_oznaczenie, BJ is something, but need to adjust columns
