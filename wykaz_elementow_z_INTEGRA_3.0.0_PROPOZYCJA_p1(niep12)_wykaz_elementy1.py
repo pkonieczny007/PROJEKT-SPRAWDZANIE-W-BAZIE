@@ -3,10 +3,11 @@ import re
 import os
 import shutil
 from pathlib import Path
+from openpyxl import load_workbook
 
 def utworz_wykaz():
     """
-    Funkcja tworzy wykaz.xlsx z wybranego pliku Excel.
+    Funkcja tworzy wykaz.xlsx z wybranego pliku Excel Z ZACHOWANIEM FORMATOWANIA.
     Dodaje kolumnę 'Nazwa' = Zeinr_p_posn
     """
     print("\n=== TWORZENIE WYKAZU ===")
@@ -38,14 +39,24 @@ def utworz_wykaz():
         print("❌ Nieprawidłowa wartość!")
         return False
     
-    # Wczytaj dane
-    print(f"\n📂 Wczytuję dane z: {plik_zrodlowy}")
-    df = pd.read_excel(plik_zrodlowy, dtype=str)
+    # KROK 1: Skopiuj oryginalny plik do wykaz.xlsx (zachowuje formatowanie)
+    print(f"\n📂 Kopiuję {plik_zrodlowy} -> wykaz.xlsx z zachowaniem formatowania...")
+    try:
+        shutil.copy2(plik_zrodlowy, 'wykaz.xlsx')
+        print("✅ Utworzono kopię z zachowaniem formatowania")
+    except Exception as e:
+        print(f"❌ Błąd podczas kopiowania pliku: {e}")
+        return False
+    
+    # KROK 2: Wczytaj dane do pandas tylko do analizy i obliczeń
+    print(f"📂 Wczytuję dane do analizy...")
+    df = pd.read_excel('wykaz.xlsx', dtype=str)
     
     # Sprawdź czy są kolumny Zeinr i Posn
     if 'Zeinr' not in df.columns or 'Posn' not in df.columns:
         print("❌ Błąd: Plik musi zawierać kolumny 'Zeinr' i 'Posn'!")
         print(f"Znalezione kolumny: {', '.join(df.columns)}")
+        os.remove('wykaz.xlsx')  # Usuń niepoprawny plik
         return False
 
     # Znajdź kolumnę 'zakupy' (bez uwzględniania wielkości liter)
@@ -58,6 +69,7 @@ def utworz_wykaz():
     if not zakupy_col:
         print("❌ Błąd: Nie znaleziono kolumny 'zakupy'!")
         print(f"Znalezione kolumny: {', '.join(df.columns)}")
+        os.remove('wykaz.xlsx')  # Usuń niepoprawny plik
         return False
 
     # Uzupełnij puste wartości
@@ -65,7 +77,7 @@ def utworz_wykaz():
     df['Posn'] = df['Posn'].fillna('')
     df[zakupy_col] = df[zakupy_col].fillna('')
 
-    # Utwórz kolumnę Nazwa tylko dla elementów z 'blacha' w kolumnie zakupy
+    # KROK 3: Oblicz wartości dla kolumny Nazwa
     df['Nazwa'] = ''
     mask = df[zakupy_col].str.lower().str.contains('blacha', na=False)
     df.loc[mask, 'Nazwa'] = df.loc[mask, 'Zeinr'] + '_p' + df.loc[mask, 'Posn']
@@ -73,16 +85,59 @@ def utworz_wykaz():
     # Dodaj pustą kolumnę propozycja
     df['propozycja'] = ''
     
-    # Zapisz wykaz
-    df.to_excel('wykaz.xlsx', index=False)
+    # KROK 4: Zapisz nowe kolumny do pliku z zachowaniem formatowania używając openpyxl
+    print("💾 Zapisuję nowe kolumny z zachowaniem formatowania...")
+    try:
+        wb = load_workbook('wykaz.xlsx')
+        ws = wb.active
+        
+        # Pobierz nagłówki
+        header_row = [cell.value for cell in ws[1]]
+        
+        # Dodaj kolumnę 'Nazwa' jeśli nie istnieje
+        if 'Nazwa' not in header_row:
+            nazwa_col_idx = len(header_row) + 1
+            ws.cell(row=1, column=nazwa_col_idx, value='Nazwa')
+        else:
+            nazwa_col_idx = header_row.index('Nazwa') + 1
+        
+        # Dodaj kolumnę 'propozycja' jeśli nie istnieje
+        header_row = [cell.value for cell in ws[1]]  # Odśwież nagłówki
+        if 'propozycja' not in header_row:
+            prop_col_idx = len(header_row) + 1
+            ws.cell(row=1, column=prop_col_idx, value='propozycja')
+        else:
+            prop_col_idx = header_row.index('propozycja') + 1
+        
+        # Wpisz wartości z DataFrame
+        for idx, (nazwa_val, prop_val) in enumerate(zip(df['Nazwa'], df['propozycja']), start=2):
+            ws.cell(row=idx, column=nazwa_col_idx, value=nazwa_val)
+            ws.cell(row=idx, column=prop_col_idx, value=prop_val)
+        
+        # Zapisz plik
+        wb.save('wykaz.xlsx')
+        wb.close()
+        print("✅ Zapisano z zachowaniem formatowania!")
+        
+    except Exception as e:
+        print(f"⚠️  Błąd podczas zapisu z openpyxl: {e}")
+        print("   Zapisuję standardowo przez pandas (bez formatowania)...")
+        df.to_excel('wykaz.xlsx', index=False)
+    
     print(f"✅ Utworzono wykaz.xlsx z {len(df)} wierszami")
     print(f"   Kolumny: {', '.join(df.columns)}")
+    
+    # Policz ile pozycji z 'blacha' znaleziono
+    ile_blach = mask.sum()
+    print(f"   Znaleziono {ile_blach} pozycji z 'blacha' w kolumnie '{zakupy_col}'")
+    
     return True
 
 
 def uruchom_propozycje():
     """
     Funkcja uruchamia dopasowanie propozycji z pliku elementy1.xlsx
+    Tworzy propozycje.xlsx jako kopię wykaz.xlsx (z zachowaniem formatowania) i tam dodaje kolumny
     """
     print("\n=== DOPASOWANIE PROPOZYCJI ===")
     
@@ -120,9 +175,18 @@ def uruchom_propozycje():
             print(f"❌ Błąd podczas pobierania pliku: {e}")
             return False
     
-    # Wczytaj dane
+    # KROK 1: Skopiuj wykaz.xlsx do propozycje.xlsx (zachowuje formatowanie)
+    print("📋 Tworzę kopię wykaz.xlsx -> propozycje.xlsx z zachowaniem formatowania...")
+    try:
+        shutil.copy2('wykaz.xlsx', 'propozycje.xlsx')
+        print("✅ Utworzono kopię z zachowaniem formatowania")
+    except Exception as e:
+        print(f"❌ Błąd podczas kopiowania pliku: {e}")
+        return False
+    
+    # KROK 2: Wczytaj dane do pandas dla logiki dopasowania
     print("📂 Wczytuję dane...")
-    wykaz_df = pd.read_excel("wykaz.xlsx", dtype=str)
+    wykaz_df = pd.read_excel("propozycje.xlsx", dtype=str)
     elementy_df = pd.read_excel("elementy1.xlsx", dtype=str)
     
     # Sprawdź czy są wymagane kolumny
@@ -134,8 +198,9 @@ def uruchom_propozycje():
         print("❌ Błąd: elementy1.xlsx nie zawiera kolumny 'Referencja'!")
         return False
     
-    # Przygotowanie kolumny wynikowej
-    wykaz_df['propozycja'] = ""
+    # KROK 3: Przygotowanie kolumny wynikowej
+    if 'propozycja' not in wykaz_df.columns:
+        wykaz_df['propozycja'] = ""
     
     # Uzupełnij puste pola
     elementy_df['Referencja'] = elementy_df['Referencja'].fillna('')
@@ -143,7 +208,7 @@ def uruchom_propozycje():
     print(f"🔍 Rozpoczynam dopasowanie dla {len(wykaz_df)} pozycji...")
     dopasowane = 0
     
-    # Iteracja po wykazie
+    # KROK 4: Iteracja po wykazie i dopasowanie
     for idx, row in wykaz_df.iterrows():
         nazwa = row.get('Nazwa')
         if not isinstance(nazwa, str) or nazwa.strip() == "":
@@ -162,8 +227,36 @@ def uruchom_propozycje():
             wykaz_df.at[idx, 'propozycja'] = match.get('Referencja1', "")
             dopasowane += 1
     
-    # Zapisz wynik
-    wykaz_df.to_excel("propozycje.xlsx", index=False)
+    # KROK 5: Zapisz dane do istniejącego pliku z zachowaniem formatowania używając openpyxl
+    print("💾 Zapisuję wyniki z zachowaniem formatowania...")
+    try:
+        wb = load_workbook('propozycje.xlsx')
+        ws = wb.active
+        
+        # Znajdź indeks kolumny 'propozycja'
+        header_row = [cell.value for cell in ws[1]]
+        
+        if 'propozycja' in header_row:
+            prop_col_idx = header_row.index('propozycja') + 1
+        else:
+            # Dodaj nową kolumnę na końcu
+            prop_col_idx = len(header_row) + 1
+            ws.cell(row=1, column=prop_col_idx, value='propozycja')
+        
+        # Wpisz wartości z DataFrame
+        for idx, value in enumerate(wykaz_df['propozycja'], start=2):
+            ws.cell(row=idx, column=prop_col_idx, value=value)
+        
+        # Zapisz plik
+        wb.save('propozycje.xlsx')
+        wb.close()
+        print("✅ Zapisano z zachowaniem formatowania!")
+        
+    except Exception as e:
+        print(f"⚠️  Błąd podczas zapisu z openpyxl: {e}")
+        print("   Zapisuję standardowo przez pandas...")
+        wykaz_df.to_excel("propozycje.xlsx", index=False)
+    
     print(f"✅ Dopasowanie zakończone!")
     print(f"   Dopasowano: {dopasowane}/{len(wykaz_df)} pozycji")
     print(f"   Wyniki zapisano w: propozycje.xlsx")
