@@ -70,29 +70,48 @@ ws_propozycje[f'{zefzev_col}1'].value = 'ZEFZEV'
 print(f"\n[3] Utworzono kolumnę ZEFZEV w: {zefzev_col} (kolumna {next_col_num})")
 
 # Wypełnij ZEFZEV
-print("    Wypełnianie ZEFZEV...")
+# Reguła (jak ręcznie w Excelu):
+#  - ZŁOŻENIE = wiersz z POGRUBIONYM Zeinr. Tam ZEFZEV = ZEF & ZEV
+#    (np. 2+0 -> "20", 1+A -> "1A"); gdy ZEF i ZEV oba puste -> "000" (sentinel).
+#  - pozostałe wiersze (pozycje złożenia) DZIEDZICZĄ wartość złożenia powyżej
+#    (wypełnienie w dół / "fill blanks = wartość nad").
+print("    Wypełnianie ZEFZEV (złożenia=pogrubione + wypełnienie w dół)...")
+
+def _cell_str(v):
+    # liczbę całkowitą zapisz bez '.0'
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    return str(v)
+
+def _zefzev_from(zef, zev):
+    zef_e = is_cell_empty(zef)
+    zev_e = is_cell_empty(zev)
+    if zef_e and zev_e:
+        return '000'  # złożenie bez rewizji - sentinel zatrzymujący dziedziczenie
+    s = ('' if zef_e else _cell_str(zef)) + ('' if zev_e else _cell_str(zev))
+    return s if s != '' else '000'
+
 zefzev_filled = 0
+zlozenia_cnt = 0
+last_zefzev = None
 for row in range(2, ws_propozycje.max_row + 1):
-    zef = ws_propozycje[f'{zef_col}{row}'].value
-    zev = ws_propozycje[f'{zev_col}{row}'].value
-    
-    if not is_cell_empty(zef) and not is_cell_empty(zev):
-        ws_propozycje[f'{zefzev_col}{row}'].value = str(zef) + str(zev)
+    zeinr_cell = ws_propozycje[f'{zeinr_col}{row}']
+    is_assembly = (not is_cell_empty(zeinr_cell.value)) and bool(zeinr_cell.font and zeinr_cell.font.bold)
+
+    if is_assembly:
+        zef = ws_propozycje[f'{zef_col}{row}'].value
+        zev = ws_propozycje[f'{zev_col}{row}'].value
+        last_zefzev = _zefzev_from(zef, zev)
+        ws_propozycje[f'{zefzev_col}{row}'].value = last_zefzev
         zefzev_filled += 1
+        zlozenia_cnt += 1
+    else:
+        # pozycja złożenia - dziedziczy wartość złożenia powyżej
+        if last_zefzev is not None:
+            ws_propozycje[f'{zefzev_col}{row}'].value = last_zefzev
+            zefzev_filled += 1
 
-print(f"    ✓ Wypełniono {zefzev_filled} wierszy")
-
-# Tworzenie słownika Zeinr -> ZEFZEV
-print("\n[4] Tworzenie słownika Zeinr -> ZEFZEV...")
-zeinr_to_zefzev = {}
-for row in range(2, ws_propozycje.max_row + 1):
-    zeinr = ws_propozycje[f'{zeinr_col}{row}'].value
-    zefzev = ws_propozycje[f'{zefzev_col}{row}'].value
-    
-    if not is_cell_empty(zeinr) and not is_cell_empty(zefzev):
-        zeinr_to_zefzev[zeinr] = zefzev
-
-print(f"    ✓ Utworzono słownik z {len(zeinr_to_zefzev)} wpisami")
+print(f"    ✓ Złożeń (pogrubione): {zlozenia_cnt}; wypełniono ZEFZEV w {zefzev_filled} wierszach")
 
 # ============================================================
 # KROK 2: SPLIT propozycja NA KOŃCU (po ZEFZEV)
@@ -165,15 +184,16 @@ nowe_oznaczenie_col = get_column_letter(next_col_num)
 ws_propozycje[f'{nowe_oznaczenie_col}1'].value = 'nowe_oznaczenie'
 print(f"\n[6] Utworzono kolumnę nowe_oznaczenie w: {nowe_oznaczenie_col} (kolumna {next_col_num})")
 
-# Wypełnij nowe_oznaczenie
+# Wypełnij nowe_oznaczenie = ZEFZEV (wartość złożenia, wypełniona w dół)
+# tylko tam, gdzie 'propozycja' jest niepusta (pozycje do sprawdzenia rewizji).
 nowe_oznaczenie_filled = 0
 for row in range(2, ws_propozycje.max_row + 1):
-    zeinr = ws_propozycje[f'{zeinr_col}{row}'].value
     propozycja = ws_propozycje[f'{propozycja_col}{row}'].value if propozycja_col else True
-    
+
     if not is_cell_empty(propozycja):
-        if zeinr in zeinr_to_zefzev:
-            ws_propozycje[f'{nowe_oznaczenie_col}{row}'].value = zeinr_to_zefzev[zeinr]
+        zefzev_val = ws_propozycje[f'{zefzev_col}{row}'].value
+        if not is_cell_empty(zefzev_val):
+            ws_propozycje[f'{nowe_oznaczenie_col}{row}'].value = zefzev_val
             nowe_oznaczenie_filled += 1
 
 print(f"    ✓ Wypełniono {nowe_oznaczenie_filled} wierszy")

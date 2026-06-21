@@ -55,7 +55,10 @@ for col in ['A', 'B', 'C', 'D', 'E', 'F']:
 
 
 # KROK 1: Tworzenie słownika z ORYGINALNEGO pliku STARE
-MAX_ROWS_TO_CHECK = 30000  # Zwiększone dla pewności
+# FIX: plik STARE ma >30000 wierszy (np. 33519). Stały cap 30000 ucinał słownik
+# i gubił klucze z końcowych wierszy (np. '3902,SL40034102' w wierszu 31618).
+# Skanujemy WSZYSTKIE wiersze arkusza.
+MAX_ROWS_TO_CHECK = ws_stare_original.max_row
 
 print(f"\n=== KROK 1: Tworzenie słownika z oryginalnego pliku STARE (kolumny C -> F) ===")
 print(f"  ℹ Przetwarzanie wierszy od 2 do {MAX_ROWS_TO_CHECK}...")
@@ -104,14 +107,17 @@ for row in range(2, MAX_ROWS_TO_CHECK + 1):
         if key_normalized in stary_dict:
             duplicate_keys += 1
         
-        # Dodaj/nadpisz w słowniku
-        stary_dict[key_normalized] = value_f
+        # Dodaj do słownika - ale zachowaj PIERWSZĄ NIEPUSTĄ wartość
+        # (jak Excel WYSZUKAJ.PIONOWO = pierwsze trafienie). Ten sam klucz potrafi się
+        # powtarzać z pustym 'suma' w późniejszym wierszu - puste NIE może nadpisać wartości.
+        if key_normalized not in stary_dict:
+            stary_dict[key_normalized] = value_f
+        elif is_cell_empty(stary_dict[key_normalized]) and not is_cell_empty(value_f):
+            stary_dict[key_normalized] = value_f
     else:
         empty_keys += 1
-        # Jeśli mamy 1000 pustych wierszy z rzędu, przerywamy
-        if empty_keys > 1000 and rows_with_data > 0:
-            print(f"  ℹ Przerwano po {processed_rows} wierszach (1000 pustych z rzędu)")
-            break
+        # FIX: usunięto przedwczesne przerwanie na 1000 pustych wierszy -
+        # ucinało słownik (puste wiersze w środku pliku kończyły skanowanie za wcześnie).
 
 
 print(f"\n  ✓ Przetworzono {processed_rows} wierszy")
